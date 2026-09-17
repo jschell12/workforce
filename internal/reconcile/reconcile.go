@@ -229,62 +229,77 @@ func sweepPairs(liveRefs, handled map[string]bool, ctl Control, opt Options, res
 	if opt.Pairs == nil {
 		return
 	}
-	pairs := opt.Pairs.Load()
-	if len(pairs) == 0 {
-		return
-	}
 	now := opt.Now
 	if now == 0 {
 		now = time.Now().Unix()
 	}
-	changed := false
 
-	for name, pair := range pairs {
-		// The accompanying session is already gone: the record is all that is
-		// left, and keeping it would hold a cap against nothing.
-		if !liveRefs[pair.BgID] {
-			delete(pairs, name)
-			changed = true
-			continue
-		}
-		if liveRefs[pair.Watching] {
-			// Up. Any earlier absence did not stick, so the clock resets.
-			if pair.MissingSince != 0 {
-				pair.MissingSince = 0
+	// Two phases on purpose. The decision runs under the file lock so a spawn
+	// cannot lose its row to this sweep; the stopping runs outside it, because
+	// `claude stop` is a subprocess and holding a lock across it would block
+	// every spawn for as long as it takes.
+	type doomed struct {
+		name, bgID, watching string
+		gone                 int64
+	}
+	var retire []doomed
+
+	opt.Pairs.Update(func(pairs map[string]Pair) bool {
+		changed := false
+		for name, pair := range pairs {
+			// The accompanying session is already gone: the record is all that
+			// is left, and keeping it would hold a cap against nothing. This is
+			// also what clears a record left behind below, when an earlier pass
+			// had already stopped the session.
+			if !liveRefs[pair.BgID] {
+				delete(pairs, name)
+				changed = true
+				continue
+			}
+			if liveRefs[pair.Watching] {
+				// Up. An earlier absence did not stick, so the clock resets.
+				if pair.MissingSince != 0 {
+					pair.MissingSince = 0
+					pairs[name] = pair
+					changed = true
+				}
+				res.Kept++
+				continue
+			}
+			if pair.MissingSince == 0 {
+				pair.MissingSince = now
 				pairs[name] = pair
 				changed = true
+				res.Kept++
+				continue
 			}
-			res.Kept++
-			continue
+			if now-pair.MissingSince < AbsentBeforeClear {
+				res.Kept++
+				continue
+			}
+			if handled[pair.BgID] {
+				// Another pass stopped it this sweep. Leave the record; the
+				// next sweep clears it through the liveRefs check above.
+				continue
+			}
+			retire = append(retire, doomed{name, pair.BgID, pair.Watching, now - pair.MissingSince})
+			if !opt.DryRun {
+				delete(pairs, name)
+				changed = true
+			}
 		}
-		if pair.MissingSince == 0 {
-			pair.MissingSince = now
-			pairs[name] = pair
-			changed = true
-			res.Kept++
-			continue
-		}
-		if now-pair.MissingSince < AbsentBeforeClear {
-			res.Kept++
-			continue
-		}
-		if handled[pair.BgID] {
-			continue
-		}
-		fmt.Fprintf(opt.Out, "reconcile: unpair %s [%s] watched %s, gone for %ds\n",
-			name, pair.BgID, pair.Watching, now-pair.MissingSince)
-		if !opt.DryRun {
-			_ = ctl.Stop(pair.BgID)
-			_ = ctl.Remove(pair.BgID)
-			delete(pairs, name)
-			changed = true
-		}
-		handled[pair.BgID] = true
-		res.Unpaired++
-	}
+		return changed && !opt.DryRun
+	})
 
-	if changed && !opt.DryRun {
-		opt.Pairs.Save(pairs)
+	for _, d := range retire {
+		fmt.Fprintf(opt.Out, "reconcile: unpair %s [%s] watched %s, gone for %ds\n",
+			d.name, d.bgID, d.watching, d.gone)
+		if !opt.DryRun {
+			_ = ctl.Stop(d.bgID)
+			_ = ctl.Remove(d.bgID)
+		}
+		handled[d.bgID] = true
+		res.Unpaired++
 	}
 }
 

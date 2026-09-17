@@ -371,7 +371,12 @@ func (m *memPairs) Load() map[string]Pair {
 	}
 	return out
 }
-func (m *memPairs) Save(p map[string]Pair) { m.M = p }
+func (m *memPairs) Update(fn func(map[string]Pair) bool) {
+	cur := m.Load()
+	if fn(cur) {
+		m.M = cur
+	}
+}
 
 func runPairs(t *testing.T, live session.Plain, pairs *memPairs, abs *MemAbsence, now int64, dry bool) (Result, *fakeCtl, string) {
 	t.Helper()
