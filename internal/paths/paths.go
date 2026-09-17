@@ -17,6 +17,7 @@ type Set struct {
 	SessionDir string // per-session --settings files
 	Log        string
 	Absence    string // the absent-since clock; outlives any one sweep
+	Pairs      string // which sessions accompany which; outlives any one sweep
 	Claude     string // executable name or path
 	Scredmgr   string
 	GH         string
@@ -43,6 +44,7 @@ func Resolve() Set {
 		SessionDir: env("WORKFORCE_SESSION_DIR", filepath.Join(claudeDir, "session")),
 		Log:        env("WORKFORCE_LOG", filepath.Join(home, "data", "workforce", "workforce.log")),
 		Absence:    env("WORKFORCE_ABSENCE", filepath.Join(home, "data", "workforce", ".absent-since")),
+		Pairs:      env("WORKFORCE_PAIRS", filepath.Join(home, "data", "workforce", "pairs.json")),
 		Claude:     env("WORKFORCE_CLAUDE", "claude"),
 		Scredmgr:   env("WORKFORCE_SCREDMGR", "scredmgr"),
 		GH:         env("WORKFORCE_GH", "gh"),

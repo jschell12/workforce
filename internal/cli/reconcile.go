@@ -59,7 +59,8 @@ deregisters a live agent mid-task.`,
 			res, err := reconcile.Run(repos, live, all,
 				forge.Client{Bin: env.Paths.GH}, claudeCtl{env.Paths.Claude},
 				reconcile.Options{DryRun: dryRun, Out: env.Out,
-					Absence: reconcile.FileAbsence{Path: env.Paths.Absence}})
+					Absence: reconcile.FileAbsence{Path: env.Paths.Absence},
+					Pairs:   reconcile.FilePairs{Path: env.Paths.Pairs}})
 			if err != nil {
 				return err
 			}

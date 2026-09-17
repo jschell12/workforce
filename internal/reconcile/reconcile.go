@@ -48,12 +48,13 @@ type Options struct {
 	DryRun  bool
 	Out     io.Writer
 	Absence Absence // where the absent-since clock lives; nil disables the clear pass
+	Pairs   Pairs   // caller pairings; nil disables the pairing pass
 	Now     int64   // unix seconds; zero means time.Now()
 }
 
 // Result counts what a sweep did.
 type Result struct {
-	Retired, Reaped, Kept, Skipped, Orphans, Cleared int
+	Retired, Reaped, Kept, Skipped, Orphans, Cleared, Unpaired int
 }
 
 func (r Result) String() string {
@@ -66,6 +67,9 @@ func (r Result) String() string {
 	}
 	if r.Cleared > 0 {
 		s += fmt.Sprintf(", clear %d", r.Cleared)
+	}
+	if r.Unpaired > 0 {
+		s += fmt.Sprintf(", unpaired %d", r.Unpaired)
 	}
 	if r.Orphans > 0 {
 		s += fmt.Sprintf(", orphans seen %d", r.Orphans)
@@ -202,7 +206,86 @@ func Run(repos []Repo, live session.Plain, all []session.Session, forge Forge, c
 
 	res.Orphans = sweepOrphans(repos, live, knownAtStart, handled, forge, ctl, opt, &res)
 	sweepAbsent(live, all, handled, ctl, opt, &res)
+	sweepPairs(liveRefs, handled, ctl, opt, &res)
 	return res, nil
+}
+
+// sweepPairs retires a session that exists only to accompany another, once the
+// session it accompanies is gone.
+//
+// It is here because reconcile's other passes are reviewer-shaped: they select
+// on `rev-` names and on a registry entry with role "reviewer", and a
+// machine-scoped role has neither. Without this, an accompanying session polls
+// on forever after the thing it was watching ended, and a cap of one on a fixed
+// name means the next spawn refuses until somebody stops it by hand.
+//
+// ABSENT ONCE IS NOT GONE. The watched session's ref is put through the same
+// absent-since clock the clear pass uses, for the same reason and with the same
+// window: a single sweep cannot tell "ended" from "not listed at this instant",
+// and acting on one sighting is what once reaped a reviewer nine minutes into
+// its review. A watcher left running half an hour too long costs a little
+// money. One stopped early takes the correction it was about to make with it.
+func sweepPairs(liveRefs, handled map[string]bool, ctl Control, opt Options, res *Result) {
+	if opt.Pairs == nil {
+		return
+	}
+	pairs := opt.Pairs.Load()
+	if len(pairs) == 0 {
+		return
+	}
+	now := opt.Now
+	if now == 0 {
+		now = time.Now().Unix()
+	}
+	changed := false
+
+	for name, pair := range pairs {
+		// The accompanying session is already gone: the record is all that is
+		// left, and keeping it would hold a cap against nothing.
+		if !liveRefs[pair.BgID] {
+			delete(pairs, name)
+			changed = true
+			continue
+		}
+		if liveRefs[pair.Watching] {
+			// Up. Any earlier absence did not stick, so the clock resets.
+			if pair.MissingSince != 0 {
+				pair.MissingSince = 0
+				pairs[name] = pair
+				changed = true
+			}
+			res.Kept++
+			continue
+		}
+		if pair.MissingSince == 0 {
+			pair.MissingSince = now
+			pairs[name] = pair
+			changed = true
+			res.Kept++
+			continue
+		}
+		if now-pair.MissingSince < AbsentBeforeClear {
+			res.Kept++
+			continue
+		}
+		if handled[pair.BgID] {
+			continue
+		}
+		fmt.Fprintf(opt.Out, "reconcile: unpair %s [%s] watched %s, gone for %ds\n",
+			name, pair.BgID, pair.Watching, now-pair.MissingSince)
+		if !opt.DryRun {
+			_ = ctl.Stop(pair.BgID)
+			_ = ctl.Remove(pair.BgID)
+			delete(pairs, name)
+			changed = true
+		}
+		handled[pair.BgID] = true
+		res.Unpaired++
+	}
+
+	if changed && !opt.DryRun {
+		opt.Pairs.Save(pairs)
+	}
 }
 
 // sweepAbsent removes sessions that are still listed by --all but have been

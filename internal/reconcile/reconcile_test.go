@@ -359,3 +359,109 @@ func TestMidTurnCheckIsCaseInsensitive(t *testing.T) {
 		}
 	}
 }
+
+// ---- pairing ----
+
+type memPairs struct{ M map[string]Pair }
+
+func (m *memPairs) Load() map[string]Pair {
+	out := map[string]Pair{}
+	for k, v := range m.M {
+		out[k] = v
+	}
+	return out
+}
+func (m *memPairs) Save(p map[string]Pair) { m.M = p }
+
+func runPairs(t *testing.T, live session.Plain, pairs *memPairs, abs *MemAbsence, now int64, dry bool) (Result, *fakeCtl, string) {
+	t.Helper()
+	ctl := &fakeCtl{}
+	var buf bytes.Buffer
+	res, err := Run(nil, live, live, nil, ctl,
+		Options{DryRun: dry, Out: &buf, Absence: abs, Pairs: pairs, Now: now})
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	return res, ctl, buf.String()
+}
+
+// The whole point: a watcher outlives nothing. Once the session it accompanies
+// has been gone for the sustained window, it is stopped and the record cleared,
+// so the next spawn is not refused by a cap held against a session that ended.
+func TestPairedSessionRetiresAfterItsCallerIsGone(t *testing.T) {
+	live := session.Plain{{ID: "bbbbbbbb", Name: "assistant"}}
+	pairs := &memPairs{M: map[string]Pair{"assistant": {BgID: "bbbbbbbb", Watching: "aaaaaaaa", MissingSince: 1000}}}
+	abs := &MemAbsence{}
+
+	res, ctl, out := runPairs(t, live, pairs, abs, 1000+AbsentBeforeClear, false)
+	if res.Unpaired != 1 {
+		t.Fatalf("want one unpaired, got %+v", res)
+	}
+	if len(ctl.stopped) != 1 || ctl.stopped[0] != "bbbbbbbb" {
+		t.Errorf("the accompanying session should have been stopped, got %v", ctl.stopped)
+	}
+	if _, still := pairs.M["assistant"]; still {
+		t.Error("record kept after retiring; the cap would stay held")
+	}
+	if !strings.Contains(out, "unpair") {
+		t.Errorf("want the reason printed: %s", out)
+	}
+}
+
+// ABSENT ONCE IS NOT GONE. This is the case the clock exists for, and getting
+// it wrong once cost a live review, so it is pinned here too rather than
+// trusted to the pass that shares the constant.
+func TestPairedSessionSurvivesASingleAbsence(t *testing.T) {
+	live := session.Plain{{ID: "bbbbbbbb", Name: "assistant"}}
+	pairs := &memPairs{M: map[string]Pair{"assistant": {BgID: "bbbbbbbb", Watching: "aaaaaaaa"}}}
+
+	// First sighting of the absence: starts the clock, retires nothing.
+	res, ctl, _ := runPairs(t, live, pairs, &MemAbsence{}, 5000, false)
+	if res.Unpaired != 0 || len(ctl.stopped) != 0 {
+		t.Fatalf("a first absence must not retire anything: %+v", res)
+	}
+	if pairs.M["assistant"].MissingSince != 5000 {
+		t.Errorf("the clock should have started at 5000, got %+v", pairs.M["assistant"])
+	}
+
+	// One second short of the window.
+	res, ctl, _ = runPairs(t, live, pairs, &MemAbsence{}, 5000+AbsentBeforeClear-1, false)
+	if res.Unpaired != 0 || len(ctl.stopped) != 0 {
+		t.Fatalf("one second short must not retire: %+v", res)
+	}
+}
+
+// A caller that comes back clears the clock, so a watcher is not retired for an
+// absence that did not stick.
+func TestReturningCallerClearsThePairingClock(t *testing.T) {
+	live := session.Plain{
+		{ID: "bbbbbbbb", Name: "assistant"},
+		{ID: "aaaaaaaa", Name: "dev"},
+	}
+	pairs := &memPairs{M: map[string]Pair{"assistant": {BgID: "bbbbbbbb", Watching: "aaaaaaaa", MissingSince: 1000}}}
+
+	res, ctl, _ := runPairs(t, live, pairs, &MemAbsence{}, 1000+AbsentBeforeClear, false)
+	if res.Unpaired != 0 || len(ctl.stopped) != 0 {
+		t.Fatalf("the caller is live; nothing should retire: %+v", res)
+	}
+	if pairs.M["assistant"].MissingSince != 0 {
+		t.Error("clock not reset for a session that came back")
+	}
+}
+
+// A dry run says what it would do and does none of it.
+func TestPairingDryRunTouchesNothing(t *testing.T) {
+	live := session.Plain{{ID: "bbbbbbbb", Name: "assistant"}}
+	pairs := &memPairs{M: map[string]Pair{"assistant": {BgID: "bbbbbbbb", Watching: "aaaaaaaa", MissingSince: 1000}}}
+
+	res, ctl, out := runPairs(t, live, pairs, &MemAbsence{}, 1000+AbsentBeforeClear, true)
+	if len(ctl.stopped) != 0 || len(ctl.removed) != 0 {
+		t.Errorf("a dry run stopped something: %v %v", ctl.stopped, ctl.removed)
+	}
+	if _, still := pairs.M["assistant"]; !still {
+		t.Error("a dry run deleted the record")
+	}
+	if res.Unpaired != 1 || !strings.Contains(out, "unpair") {
+		t.Errorf("a dry run must still report what it would do: %+v %s", res, out)
+	}
+}
