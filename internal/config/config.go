@@ -99,6 +99,13 @@ type Role struct {
 	SystemPrompt    string // --append-system-prompt; standing instruction, not a brief
 	Owner           string // documentation: "user" marks a seat that is not a machine account
 
+	// Model pins the session's model. Empty inherits whatever the client would
+	// pick, which is right for a role doing the work and wrong for one that
+	// watches somebody else do it: a watcher runs as long as the session it
+	// watches, so the model it runs on is the difference between leaving it on
+	// and not affording to.
+	Model string
+
 	// Repo is empty for a machine-scoped role.
 	Repo *Repo
 }
@@ -134,6 +141,7 @@ type wireRole struct {
 	PermissionMode  *string  `toml:"permission_mode"`
 	SystemPrompt    *string  `toml:"system_prompt"`
 	Owner           *string  `toml:"owner"`
+	Model           *string  `toml:"model"`
 }
 
 type wireRepo struct {
@@ -239,6 +247,9 @@ func convert(name string, w *wireRole) (*Role, error) {
 	}
 	if w.PermissionMode != nil {
 		r.PermissionMode = *w.PermissionMode
+	}
+	if w.Model != nil {
+		r.Model = *w.Model
 	}
 	if w.SystemPrompt != nil {
 		r.SystemPrompt = *w.SystemPrompt
