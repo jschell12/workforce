@@ -118,6 +118,15 @@ that reviewer looks at.`,
 			if err != nil {
 				return err
 			}
+			// ABOVE the dry-run branch, not inside it. A warning that only
+			// prints on a rehearsal is silent for every real spawn, which is
+			// the one that matters. Written inside it first.
+			//
+			// stderr, and before the rest, because a warning printed under a
+			// wall of settings is one nobody reads.
+			for _, warn := range plan.Warnings {
+				fmt.Fprintf(env.Err, "wf: WARNING: %s\n", warn)
+			}
 			if dryRun {
 				fmt.Fprintf(env.Out, "cwd: %s\n", plan.Workdir)
 				if plan.Branch != "" {

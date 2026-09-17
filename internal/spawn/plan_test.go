@@ -425,3 +425,46 @@ func argvHasPair(argv []string, flag, val string) bool {
 	}
 	return false
 }
+
+// A role names a permission profile in order to be constrained by it. When the
+// file is absent the spawn still proceeds, deliberately, so a fresh machine's
+// keepalive does not fail closed -- but it must say so, because a session
+// running with `{}` has no deny list and looks exactly like one that does.
+func TestMissingPermProfileWarnsRatherThanHides(t *testing.T) {
+	w := world(t)
+	if err := os.MkdirAll(w.Paths.PermDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// deliberately write no base.json
+	p, err := Build(role(t, "", "base"), Request{Role: "base", Brief: "x"}, w)
+	if err != nil {
+		t.Fatalf("a missing profile must not stop the spawn: %v", err)
+	}
+	if len(p.Warnings) == 0 {
+		t.Fatal("no warning for a missing permission profile; the session would start unprotected in silence")
+	}
+	joined := strings.Join(p.Warnings, " ")
+	if !strings.Contains(joined, "NO permission rules") {
+		t.Errorf("warning does not say what was lost: %q", joined)
+	}
+}
+
+// The other half: a profile that IS there produces no warning, so the warning
+// means something when it appears.
+func TestPresentPermProfileWarnsNothing(t *testing.T) {
+	w := world(t)
+	if err := os.MkdirAll(w.Paths.PermDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	profile := `{"permissions":{"deny":["Bash(git push:*)"]}}`
+	if err := os.WriteFile(filepath.Join(w.Paths.PermDir, "base.json"), []byte(profile), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, err := Build(role(t, "", "base"), Request{Role: "base", Brief: "x"}, w)
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	if len(p.Warnings) != 0 {
+		t.Errorf("a deployed profile should warn about nothing, got %v", p.Warnings)
+	}
+}
