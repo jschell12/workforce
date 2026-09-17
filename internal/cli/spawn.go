@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jschell12/workforce/internal/forge"
+	"github.com/jschell12/workforce/internal/reconcile"
 	"github.com/jschell12/workforce/internal/registry"
 	"github.com/jschell12/workforce/internal/session"
 	"github.com/jschell12/workforce/internal/spawn"
@@ -163,6 +164,25 @@ that reviewer looks at.`,
 			if !role.MachineScoped() {
 				if err := spawn.Register(plan, bgID, repoPath); err != nil {
 					fmt.Fprintf(env.Err, "wf: spawned but not registered: %v\n", err)
+				}
+			}
+			// A role that accompanies its caller records the pairing here,
+			// because this is the only moment both refs are known: the caller
+			// from the environment, and the new session from what the client
+			// just printed. Reconcile cannot work either of them out later.
+			//
+			// Without a bgID there is nothing to stop later, so recording it
+			// would be a row that never clears. The warning above already said
+			// the id was missing.
+			if role.RetireWithCaller && bgID != "" {
+				caller := callerRef()
+				if caller == "" {
+					fmt.Fprintf(env.Err, "wf: %s accompanies its caller but the caller could not be "+
+						"identified; nothing will retire it. Stop it by hand with `wf stop %s`.\n",
+						plan.Name, plan.Name)
+				} else {
+					reconcile.Record(reconcile.FilePairs{Path: env.Paths.Pairs}, plan.Name,
+						reconcile.Pair{BgID: bgID, Watching: caller})
 				}
 			}
 			ref := bgID

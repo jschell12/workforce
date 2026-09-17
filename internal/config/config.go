@@ -106,6 +106,12 @@ type Role struct {
 	// red, and a check that is always red is one people stop reading.
 	Standing bool
 
+	// RetireWithCaller marks a session that exists only to accompany the one
+	// that spawned it, and so has nothing left to do once that one has ended.
+	// `wf` records the pairing at spawn and `wf reconcile` acts on it, because
+	// the registry lives under a repository and a machine-scoped role has none.
+	RetireWithCaller bool
+
 	// Model pins the session's model. Empty inherits whatever the client would
 	// pick, which is right for a role doing the work and wrong for one that
 	// watches somebody else do it: a watcher runs as long as the session it
@@ -138,18 +144,19 @@ type Config struct {
 // ---- wire types: the shape TOML actually has ----
 
 type wireRole struct {
-	Persona         *string  `toml:"persona"`
-	PersonasAllowed []string `toml:"personas_allowed"`
-	Token           *string  `toml:"token"`
-	Cap             *int     `toml:"cap"`
-	CapScope        *string  `toml:"cap_scope"`
-	Workspace       *string  `toml:"workspace"`
-	Perm            *string  `toml:"perm"`
-	PermissionMode  *string  `toml:"permission_mode"`
-	SystemPrompt    *string  `toml:"system_prompt"`
-	Owner           *string  `toml:"owner"`
-	Model           *string  `toml:"model"`
-	Standing        *bool    `toml:"standing"`
+	Persona          *string  `toml:"persona"`
+	PersonasAllowed  []string `toml:"personas_allowed"`
+	Token            *string  `toml:"token"`
+	Cap              *int     `toml:"cap"`
+	CapScope         *string  `toml:"cap_scope"`
+	Workspace        *string  `toml:"workspace"`
+	Perm             *string  `toml:"perm"`
+	PermissionMode   *string  `toml:"permission_mode"`
+	SystemPrompt     *string  `toml:"system_prompt"`
+	Owner            *string  `toml:"owner"`
+	Model            *string  `toml:"model"`
+	Standing         *bool    `toml:"standing"`
+	RetireWithCaller *bool    `toml:"retire_with_caller"`
 }
 
 type wireRepo struct {
@@ -261,6 +268,9 @@ func convert(name string, w *wireRole) (*Role, error) {
 	}
 	if w.Standing != nil {
 		r.Standing = *w.Standing
+	}
+	if w.RetireWithCaller != nil {
+		r.RetireWithCaller = *w.RetireWithCaller
 	}
 	if w.SystemPrompt != nil {
 		r.SystemPrompt = *w.SystemPrompt
