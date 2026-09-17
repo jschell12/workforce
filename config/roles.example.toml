@@ -45,6 +45,7 @@ workspace_root = "~/src"
 persona = ""              # plain session: full tools, no replacement prompt
 owner = "user"            # documentation: this seat is a person's, not a bot's
 token = "none"            # it dispatches; what it dispatches holds the tokens
+standing = true           # something restarts it, so `wf doctor` can call it down
 cap = 1
 cap_scope = "machine"
 workspace = "workspace_root"
