@@ -167,3 +167,37 @@ func TestParsesShippedConfig(t *testing.T) {
 		}
 	}
 }
+
+// A standing role is expected to be up; an on-demand one is not, and the
+// default matters more than the flag. Every role that existed before this field
+// was added parses without it, and a default of true would have made every
+// on-demand role report as down.
+func TestStandingDefaultsToOffDemand(t *testing.T) {
+	c, err := Parse([]byte(`
+[role.kept]
+persona = ""
+token = "none"
+cap = 1
+cap_scope = "machine"
+workspace = "workspace_root"
+perm = "p"
+standing = true
+
+[role.ondemand]
+persona = ""
+token = "none"
+cap = 1
+cap_scope = "machine"
+workspace = "workspace_root"
+perm = "p"
+`))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if !c.Roles["kept"].Standing {
+		t.Error("standing = true did not survive the parse")
+	}
+	if c.Roles["ondemand"].Standing {
+		t.Error("a role that omits `standing` must not be treated as standing")
+	}
+}

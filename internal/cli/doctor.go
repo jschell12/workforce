@@ -45,7 +45,13 @@ func newDoctorCmd(env *Env) *cobra.Command {
 
 			for name, role := range cfg.Roles {
 				d.role(cfg, "", name, role)
-				if listErr == nil {
+				// Only a STANDING role can be down. An on-demand machine-scoped
+				// role is not running most of the time, and reporting that as a
+				// failure makes doctor permanently red for a role that is
+				// behaving correctly. Until there was a second machine-scoped
+				// role this was indistinguishable, because the only one there
+				// had ever been was kept alive by launchd.
+				if listErr == nil && role.Standing {
 					up := false
 					for _, s := range live.Live() {
 						if s.Name == name {

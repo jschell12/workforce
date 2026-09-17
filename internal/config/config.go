@@ -99,6 +99,13 @@ type Role struct {
 	SystemPrompt    string // --append-system-prompt; standing instruction, not a brief
 	Owner           string // documentation: "user" marks a seat that is not a machine account
 
+	// Standing marks a role that is expected to be running at all times,
+	// because something restarts it. Only such a role can be "down": an
+	// on-demand role is not running most of the time and that is its normal
+	// state, so reporting it as a failure makes the health check permanently
+	// red, and a check that is always red is one people stop reading.
+	Standing bool
+
 	// Model pins the session's model. Empty inherits whatever the client would
 	// pick, which is right for a role doing the work and wrong for one that
 	// watches somebody else do it: a watcher runs as long as the session it
@@ -142,6 +149,7 @@ type wireRole struct {
 	SystemPrompt    *string  `toml:"system_prompt"`
 	Owner           *string  `toml:"owner"`
 	Model           *string  `toml:"model"`
+	Standing        *bool    `toml:"standing"`
 }
 
 type wireRepo struct {
@@ -250,6 +258,9 @@ func convert(name string, w *wireRole) (*Role, error) {
 	}
 	if w.Model != nil {
 		r.Model = *w.Model
+	}
+	if w.Standing != nil {
+		r.Standing = *w.Standing
 	}
 	if w.SystemPrompt != nil {
 		r.SystemPrompt = *w.SystemPrompt
