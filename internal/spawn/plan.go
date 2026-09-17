@@ -40,6 +40,11 @@ type Plan struct {
 	Settings     map[string]any
 	Entry        registry.Entry
 	TokenKey     string // the KEY; the value is never held
+
+	// Warnings are conditions a caller must see but that do not stop the spawn.
+	// A plan that degrades silently is worse than one that refuses: the refusal
+	// is noticed.
+	Warnings []string
 }
 
 // World is the observed state a plan is built against. Passing it in keeps Build
@@ -129,9 +134,12 @@ func Build(role *config.Role, req Request, w World) (*Plan, error) {
 	p := &Plan{Name: req.Name, Tag: tag, Persona: persona, TokenKey: tokenKeyOf(role)}
 	p.Workdir, p.Branch = workdir(role, req, w)
 
-	settings, err := loadPerm(w.Paths.PermDir, role)
+	settings, permWarn, err := loadPerm(w.Paths.PermDir, role)
 	if err != nil {
 		return nil, err
+	}
+	if permWarn != "" {
+		p.Warnings = append(p.Warnings, permWarn)
 	}
 	// "none" rather than an absent key, deliberately. The wrapper must tell
 	// "this role holds no token" from "wf did not say": the first keeps gh
@@ -260,7 +268,7 @@ func expandHome(p, _ string) string {
 	return filepath.Join(home, strings.TrimPrefix(p, "~"))
 }
 
-func loadPerm(dir string, role *config.Role) (map[string]any, error) {
+func loadPerm(dir string, role *config.Role) (map[string]any, string, error) {
 	name := role.Perm
 	if name == "" {
 		name = role.Name
@@ -269,18 +277,26 @@ func loadPerm(dir string, role *config.Role) (map[string]any, error) {
 	b, err := os.ReadFile(f)
 	if err != nil {
 		if os.IsNotExist(err) {
-			// A missing profile is not fatal: the session still gets the token
-			// binding, and refusing to spawn over a cosmetic file would make
-			// the keepalive fail closed on a fresh machine.
-			return map[string]any{}, nil
+			// Still not fatal, and for the original reason: refusing over a
+			// missing file would make the keepalive fail closed on a fresh
+			// machine, which is worse than starting with no rules.
+			//
+			// It is no longer SILENT, which is the part that was wrong. A role
+			// names a permission profile in order to be constrained by it, and
+			// a session that starts with `{}` has no deny list and no allow
+			// list while looking exactly like one that does. Whoever spawned it
+			// is the only one who can notice, so tell them.
+			return map[string]any{}, fmt.Sprintf(
+				"permission profile %s not found; session starts with NO permission rules "+
+					"(deny list absent). Deploy it, or spawn again once it is on the machine.", f), nil
 		}
-		return nil, fmt.Errorf("read %s: %w", f, err)
+		return nil, "", fmt.Errorf("read %s: %w", f, err)
 	}
 	var m map[string]any
 	if err := json.Unmarshal(b, &m); err != nil {
-		return nil, fmt.Errorf("%s is not valid JSON: %w", f, err)
+		return nil, "", fmt.Errorf("%s is not valid JSON: %w", f, err)
 	}
-	return m, nil
+	return m, "", nil
 }
 
 func knownTags(entries []registry.Entry) map[string]bool {

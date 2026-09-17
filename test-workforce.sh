@@ -726,6 +726,32 @@ else
   no "no ambient token reaches the spawned client" "got: $(cat "$SPAWNENV_OUT" 2>/dev/null)"
 fi
 
+# A missing permission profile warns on a REAL spawn, not only a dry run.
+#
+# The warning was written inside the `if dryRun` branch first, where it printed
+# for a rehearsal and stayed silent for every spawn that actually started a
+# session. That is the inverse of useful, and no unit test on the plan could see
+# it: the plan carried the warning correctly and the CLI dropped it. This case
+# runs the binary without --dry-run and reads stderr.
+PERMWARN_OUT="${TMP}/permwarn.txt"
+WORKFORCE_PERM_DIR="${TMP}/perm-empty" WORKFORCE_SESSION_DIR="$SESS" \
+  "$WF" spawn reviewer permitguv --pr 12 >/dev/null 2>"$PERMWARN_OUT"
+if grep -q "NO permission rules" "$PERMWARN_OUT"; then
+  ok "a missing permission profile warns on a real spawn"
+else
+  no "a missing permission profile warns on a real spawn" "stderr: $(head -c 200 "$PERMWARN_OUT")"
+fi
+
+# And says nothing when the profile is there, so the warning means something.
+PERMQUIET_OUT="${TMP}/permquiet.txt"
+WORKFORCE_SESSION_DIR="$SESS" \
+  "$WF" spawn reviewer permitguv --pr 13 >/dev/null 2>"$PERMQUIET_OUT"
+if grep -q "NO permission rules" "$PERMQUIET_OUT"; then
+  no "a deployed permission profile warns about nothing" "warned anyway: $(head -c 200 "$PERMQUIET_OUT")"
+else
+  ok "a deployed permission profile warns about nothing"
+fi
+
 # The key still has to be validated: an unreadable one must fail the spawn
 # rather than starting a session that silently holds the wrong account.
 cat > "${TMP}/scredmgr-empty" <<'S'
