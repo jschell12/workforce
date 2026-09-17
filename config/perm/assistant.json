@@ -1,0 +1,50 @@
+{
+  "_comment": [
+    "Permission profile for the `assistant` session: it watches one other",
+    "session's transcript and speaks when that transcript contradicts a claim",
+    "that session made.",
+    "",
+    "It reads and it messages. That is the whole loop, so the allow list is the",
+    "whole loop and nothing else. A watcher with a broad grant is a second",
+    "session holding your credentials and sitting idle most of the day.",
+    "",
+    "Note the failure mode of a tight allow list on a background session: a",
+    "command that is neither allowed nor denied falls through to asking, and",
+    "nobody is at a prompt to answer, so it stalls rather than refusing. That is",
+    "survivable for this role, because a stalled watcher says nothing and saying",
+    "nothing is its normal output. It would not be survivable for a worker.",
+    "",
+    "The denies are already unreachable from the allow list. They are written",
+    "anyway: a deny is a statement of intent that survives somebody widening the",
+    "allows later, and this role must never become a way to launder an action",
+    "the watched session was blocked from taking itself."
+  ],
+  "permissions": {
+    "allow": [
+      "Read",
+      "Bash(tail:*)",
+      "Bash(head:*)",
+      "Bash(sed:*)",
+      "Bash(grep:*)",
+      "Bash(wc:*)",
+      "Bash(stat:*)",
+      "Bash(ls:*)",
+      "Bash(jq:*)",
+      "Bash(date:*)"
+    ],
+    "deny": [
+      "Bash(git push:*)",
+      "Bash(git commit:*)",
+      "Bash(gh pr create:*)",
+      "Bash(gh pr merge:*)",
+      "Bash(gh pr review:*)",
+      "Bash(gh pr comment:*)",
+      "Bash(claude --bg:*)",
+      "Bash(claude --background:*)",
+      "Bash(wf spawn:*)",
+      "Bash(scredmgr:*)",
+      "Bash(source-secrets:*)"
+    ]
+  },
+  "disableRemoteControl": true
+}

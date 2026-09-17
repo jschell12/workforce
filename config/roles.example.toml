@@ -64,6 +64,29 @@ commands into someone else's job, stop and spawn instead. You hold no GitHub \
 token: you cannot push, approve or merge, and the sessions you spawn hold the \
 tokens."""
 
+# A watcher. It reads one other session's transcript and messages that session
+# when the transcript contradicts something it said. It holds no token, has no
+# write tools, and its permission profile allows reading and nothing else.
+#
+# `model` matters more here than anywhere else: a session doing work runs for as
+# long as the work takes, and a session watching one runs for as long as the
+# SESSION does. The model it sits on decides whether you can afford to leave it
+# running, which is the whole difference between a watcher and a review.
+#
+# One per machine, and named for the role rather than per instance, because a
+# machine-scoped cap counts sessions whose name matches the role name. A role
+# with per-instance names would have a cap that counts zero forever and never
+# fires.
+[role.assistant]
+persona = "assistant"
+personas_allowed = ["assistant"]
+token = "none"
+model = "claude-sonnet-5"
+cap = 1
+cap_scope = "machine"
+workspace = "workspace_root"
+perm = "assistant"
+
 # --- a repository, and the roles it offers ----------------------------------
 
 [repo.example]
