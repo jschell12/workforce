@@ -1,0 +1,126 @@
+# workforce roles -- which persona, which GitHub token, how many may run.
+#
+# Copy this to ~/.claude/workforce/roles.toml and edit it. wf reads that path;
+# override with WORKFORCE_CONFIG. `wf roles` prints what it resolved, and
+# `wf doctor` checks every persona, permission profile and token named here.
+#
+# This file is an EXAMPLE and is not deployed anywhere. A machine's real config
+# names real repositories and real credential keys, which is why it belongs in
+# your own private configuration rather than in this repo.
+
+# ---------------------------------------------------------------------------
+# The three fields that are easy to get wrong
+#
+#   token      A credential KEY, never a value. wf resolves it at spawn time
+#              and hands it to the session through its --settings file, so the
+#              secret never enters an environment variable or a process listing.
+#
+#              Three settings, not two:
+#                token = "custom:SOME_KEY"  resolve this key, bind that account
+#                token = "none"             no GH_TOKEN, no GITHUB_TOKEN
+#                (field omitted)            fall through to the ambient default
+#
+#              "none" and omitted want opposite answers, so write one on purpose.
+#              A role defined by holding no account must say "none" explicitly.
+#
+#   cap        A number AND a scope. `cap = 1` alone is meaningless: one per
+#              machine, one per repo and one per pull request are three
+#              different rules. cap_scope is "machine", "repo" or "pr".
+#
+#   workspace  "workspace_root" (a directory, for machine-scoped roles),
+#              "checkout" (the repo itself, for roles that only read), or
+#              "worktree" (a fresh git worktree, for roles that write).
+# ---------------------------------------------------------------------------
+
+[defaults]
+# Where a machine-scoped session is rooted. Not a repo -- the directory your
+# repos live in.
+workspace_root = "~/src"
+
+# --- machine-scoped roles (no repo argument) --------------------------------
+
+# The base of operations: one always-on session per machine, the one a phone or
+# a chat client reaches. It dispatches work rather than doing it.
+[role.workforce]
+persona = ""              # plain session: full tools, no replacement prompt
+owner = "user"            # documentation: this seat is a person's, not a bot's
+token = "none"            # it dispatches; what it dispatches holds the tokens
+cap = 1
+cap_scope = "machine"
+workspace = "workspace_root"
+perm = "workforce"
+# A standing steer belongs in --append-system-prompt, which is what this field
+# becomes, and NOT in the session's first user message. An instruction delivered
+# as a user turn is obeyed on turn one and gone by turn three; a system prompt
+# holds for the life of the session.
+system_prompt = """You are the workforce session: one per machine, the base of \
+operations, and the session a chat client reaches. Dispatch rather than do. A \
+long job in this conversation makes the one session a person needs to reach slow \
+and expensive, so hand work to a new session with `wf spawn` and report what the \
+fleet is doing instead of joining it. Answering a question about the fleet, \
+reading state, and starting or stopping sessions are yours; running a task \
+someone could have handed a worker is not. When you catch yourself several \
+commands into someone else's job, stop and spawn instead. You hold no GitHub \
+token: you cannot push, approve or merge, and the sessions you spawn hold the \
+tokens."""
+
+# --- a repository, and the roles it offers ----------------------------------
+
+[repo.example]
+path = "~/src/example"
+slug = "your-org/example"
+
+# Ordinary work. `persona` is the default and --persona picks another from
+# personas_allowed. Two personas that differ only in repo knowledge are one role
+# with an argument, not two roles: wf cares about tokens, caps and workspaces,
+# and those are identical.
+[repo.example.role.worker]
+persona = "implementer"
+personas_allowed = ["implementer", "coordinator"]
+token = "custom:EXAMPLE_IMPLEMENTER_TOKEN"
+cap = 3
+cap_scope = "repo"
+workspace = "worktree"
+perm = "worker"
+permission_mode = "acceptEdits"
+
+# Summoned by the worker that opened the pull request:
+#   wf spawn reviewer example --pr 42
+#
+# The brief is composed by wf and a caller-supplied one is refused, so an author
+# who summons its own reviewer cannot also frame what the reviewer looks at.
+#
+# This role signs where a dispatched subagent could not. A subagent shares its
+# parent's process environment and therefore the author's token, so its claimed
+# identity and its credential disagree and every guarded action is refused. A
+# spawned session is a separate process with its own binding. The distinction is
+# the process boundary, not who asked.
+#
+# Use a DIFFERENT account here from the one your workers push with. Whoever
+# writes the code cannot be the second reader on it, and a review signed by the
+# author's account satisfies a gate without satisfying anyone.
+[repo.example.role.reviewer]
+persona = "reviewer"
+personas_allowed = ["reviewer"]
+token = "custom:EXAMPLE_REVIEWER_TOKEN"
+cap = 1
+cap_scope = "pr"
+workspace = "checkout"
+perm = "reviewer"
+
+# Not part of the normal path. `wf reconcile` does most of what a supervisor was
+# for, mechanically and on a timer. What is left is land-order when two open
+# pull requests touch the same file, and calling a review round done. Spawn one
+# when you have such a question, not overnight.
+[repo.example.role.supervisor]
+persona = "supervisor"
+personas_allowed = ["supervisor"]
+token = "none"
+cap = 1
+cap_scope = "repo"
+workspace = "checkout"
+perm = "supervisor"
+
+# A repo may offer any subset of roles. One that only ever needs its pull
+# requests read can declare a reviewer and nothing else; `wf spawn worker` then
+# fails naming the roles that do exist, which is a clear enough answer.

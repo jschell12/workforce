@@ -1,0 +1,45 @@
+{
+  "_comment": [
+    "Permission profile for workforce `reviewer` sessions.",
+    "A reviewer reads and signs. It must not author, because anything it authors",
+    "loses the approval it would otherwise have given: GitHub forbids approving",
+    "your own pull request.",
+    "The `reviewer` persona already sets disallowedTools for Edit/Write/NotebookEdit;",
+    "this covers the shell, which that field does not.",
+    "",
+    "disableRemoteControl: a reviewer runs for minutes, posts a verdict, and is",
+    "retired. It has no reason to be drivable from a phone, and every session that",
+    "connects Remote Control leaves an entry in the Claude app's session list that",
+    "OUTLIVES it -- `offline`, permanent, and clearable only by hand in the app.",
+    "Six had piled up by 2026-09-11, one of them twice. Verified by spawning a",
+    "background session with this key: it never appeared in ListAgents at all,",
+    "while every reviewer spawned without it left an entry."
+  ],
+  "permissions": {
+    "allow": [
+      "Bash(git fetch:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git diff:*)",
+      "Bash(git rev-list:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git ls-files:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr diff:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(gh pr comment:*)",
+      "Bash(gh pr review:*)",
+      "Bash(npm test:*)",
+      "Bash(make test)"
+    ],
+    "deny": [
+      "Bash(git push:*)",
+      "Bash(gh pr create:*)",
+      "Bash(gh pr merge:*)",
+      "Bash(claude --bg:*)",
+      "Bash(scredmgr:*)"
+    ]
+  },
+  "disableRemoteControl": true
+}

@@ -1,0 +1,22 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # `make check` is build + go test + vet + gofmt + the acceptance suite,
+      # and it points the suite at the binary it just built. Running the suite
+      # against anything else is how it once reported 72 failures on a clean
+      # clone while the code was fine.
+      - run: make check

@@ -1,0 +1,37 @@
+{
+  "_comment": [
+    "Permission profile for workforce `worker` sessions. Passed with --settings.",
+    "Deployed from this repo's config/perm/ by the sync script; edit it here.",
+    "",
+    "The point of this file is that a background session does NOT need bypass",
+    "mode. Anything not allowed here forwards a prompt to the Claude app and the",
+    "session parks at state `waiting` until someone answers. Allow the routine,",
+    "deny the load-bearing, let the rest ask.",
+    "",
+    "The deny list is the second boundary. A repo with a hook layer can refuse",
+    "these in .claude/hooks/ as well. A repo without one has nothing else",
+    "carrying the rule, so there this file is the only thing that does."
+  ],
+  "permissions": {
+    "allow": [
+      "Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)",
+      "Bash(git add:*)", "Bash(git commit:*)", "Bash(git rebase:*)",
+      "Bash(git fetch:*)", "Bash(git checkout:*)", "Bash(git worktree:*)",
+      "Bash(gh pr create:*)", "Bash(gh pr view:*)", "Bash(gh pr list:*)",
+      "Bash(gh pr checks:*)", "Bash(gh pr diff:*)",
+      "Bash(npm test:*)", "Bash(npm run:*)", "Bash(npx tsc:*)",
+      "Bash(make test)", "Bash(make lint)", "Bash(make build)",
+      "Bash(wf spawn reviewer:*)", "Bash(workforce spawn reviewer:*)"
+    ],
+    "deny": [
+      "Bash(gh pr merge:*)",
+      "Bash(gh pr review:*)",
+      "Bash(gh api:*repos/*/merges*)",
+      "Bash(git push origin main:*)",
+      "Bash(git push --force:*)",
+      "Bash(claude --bg:*)",
+      "Bash(claude --background:*)",
+      "Bash(scredmgr:*)"
+    ]
+  }
+}

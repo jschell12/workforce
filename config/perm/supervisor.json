@@ -1,0 +1,25 @@
+{
+  "_comment": [
+    "Permission profile for workforce `supervisor` sessions.",
+    "A supervisor decides and reports. It holds neither GitHub token (roles.toml",
+    "sets token = \"none\"), so it cannot write to a forge even if something here",
+    "were wrong. Reads only, plus the comment it needs to record a decision.",
+    "Spawn one for a land-order or round-cap question, not overnight."
+  ],
+  "permissions": {
+    "allow": [
+      "Bash(git log:*)", "Bash(git show:*)", "Bash(git rev-list:*)", "Bash(git rev-parse:*)",
+      "Bash(gh pr view:*)", "Bash(gh pr list:*)", "Bash(gh pr diff:*)", "Bash(gh pr checks:*)",
+      "Bash(wf ls:*)", "Bash(workforce ls:*)"
+    ],
+    "deny": [
+      "Bash(git push:*)",
+      "Bash(gh pr create:*)",
+      "Bash(gh pr merge:*)",
+      "Bash(gh pr review:*)",
+      "Bash(gh pr comment:*)",
+      "Bash(claude --bg:*)",
+      "Bash(scredmgr:*)"
+    ]
+  }
+}

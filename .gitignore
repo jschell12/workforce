@@ -1,0 +1,8 @@
+# Anchored, all of them. `wf` unanchored also matches the DIRECTORY cmd/wf,
+# which is the CLI's entry point. That was inert while cmd/wf/main.go was
+# already tracked, and removed the whole package the first time this tree was
+# committed into a fresh repository: the import built a repo with no cmd/wf,
+# and `make check` failed with "stat .../cmd/wf: directory not found".
+/wf
+/dist/
+*.new

@@ -1,0 +1,78 @@
+# Release config for wf. `make check` is the gate; this is only distribution.
+#
+# Two names ship, deliberately. `wf` is what a person types and `workforce` is
+# what scripts, launchd plists and permission profiles name, so the cask
+# installs the binary as `workforce` and symlinks `wf` beside it. A machine that
+# has only one of the two silently breaks whichever consumer used the other.
+version: 2
+
+project_name: workforce
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - main: ./cmd/wf
+    # NOT `wf`: this is the name the archive and the cask's binary stanza carry,
+    # and the alias is added on top of it.
+    binary: workforce
+    env:
+      - CGO_ENABLED=0
+    goos: [darwin, linux]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"
+
+# `brews:` is deprecated in GoReleaser v2. A cask is the supported way to ship a
+# prebuilt binary through a tap.
+homebrew_casks:
+  - name: workforce
+    repository:
+      owner: jschell12
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    homepage: "https://github.com/jschell12/workforce"
+    description: "Starts and accounts for the Claude Code sessions running on a machine"
+    binaries:
+      - workforce
+    # The second name. `binaries:` renders one stanza per entry and has no way
+    # to express an alias, so the alias is raw Ruby.
+    custom_block: |
+      binary "workforce", target: "wf"
+    hooks:
+      post:
+        install: |
+          if system_command("/usr/bin/xattr", args: ["-h"]).exit_status.zero?
+            system_command "/usr/bin/xattr",
+                           args: ["-dr", "com.apple.quarantine", "#{staged_path}/workforce"]
+          end
+    caveats: |
+      wf needs a config before it can do anything:
+
+        mkdir -p ~/.claude/workforce
+        curl -fsSL -o ~/.claude/workforce/roles.toml https://raw.githubusercontent.com/jschell12/workforce/main/config/roles.example.toml
+
+      Permission profiles go in ~/.claude/workforce/perm/. Run `wf doctor` once
+      you have edited the config: it checks every persona, permission profile
+      and credential key the config names.
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+
+release:
+  github:
+    owner: jschell12
+    name: workforce

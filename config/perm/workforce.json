@@ -1,0 +1,52 @@
+{
+  "_comment": [
+    "Permission profile for the `workforce` session -- the always-on base of",
+    "operations, kept alive by a launchd job and the session the",
+    "Claude app talks to. One per machine.",
+    "",
+    "This role is YOURS, not a machine account's. worker and reviewer sessions hold",
+    "their own machine accounts; this one is your own seat, and it is where you",
+    "drive wf from.",
+    "",
+    "It is deliberately NOT the supervisor persona. Supervisor's file is written as a",
+    "replacement system prompt that refuses to take work and grants no Edit or Write,",
+    "which is exactly wrong for the session you poke from a phone: you would ask it",
+    "to fix a typo and get a lecture about not taking items. What IS worth borrowing",
+    "is githubRole: none -- an always-on session reachable from a phone should not be",
+    "able to push, approve or merge. So: full tools, no forge writes. It dispatches;",
+    "what it dispatches holds the tokens.",
+    "",
+    "It can also read the fleet (`wf ls`, `claude agents`) and drive wf, which is the",
+    "whole point of it being the base of operations."
+  ],
+  "permissions": {
+    "allow": [
+      "Bash(wf:*)",
+      "Bash(workforce:*)",
+      "Bash(git status:*)",
+      "Bash(git log:*)",
+      "Bash(git diff:*)",
+      "Bash(git show:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(gh pr diff:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh run view:*)",
+      "Bash(gh issue list:*)",
+      "Bash(claude agents:*)",
+      "Bash(claude logs:*)",
+      "Bash(claude stop:*)",
+      "Bash(claude rm:*)"
+    ],
+    "deny": [
+      "Bash(git push:*)",
+      "Bash(gh pr create:*)",
+      "Bash(gh pr merge:*)",
+      "Bash(gh pr review:*)",
+      "Bash(claude --bg:*)",
+      "Bash(claude --background:*)",
+      "Bash(scredmgr:*)"
+    ]
+  }
+}
