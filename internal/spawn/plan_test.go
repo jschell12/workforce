@@ -23,6 +23,15 @@ workspace = "workspace_root"
 perm = "base"
 system_prompt = "stand by"
 
+[role.watcher]
+persona = ""
+token = "none"
+cap = 1
+cap_scope = "machine"
+workspace = "workspace_root"
+perm = "base"
+model = "test-model-5"
+
 [repo.alpha]
 path = "/tmp/alpha"
 slug = "owner/alpha"
@@ -377,4 +386,42 @@ func TestCapJoinsOnNameWhenTheIDIsMissing(t *testing.T) {
 	if !strings.Contains(err.Error(), "cap reached: 2/2") {
 		t.Errorf("got %v", err)
 	}
+}
+
+// A pinned model reaches argv, and an unpinned one adds no flag at all.
+//
+// Both halves, because `model` is an optional TOML key and an unknown key is
+// silently ignored by the parser: a role that pins a model and a wf that does
+// not understand the field look identical from the config side, and the only
+// place the difference is visible is the argv wf actually builds. The absent
+// case is the one that catches a flag defaulting to something.
+func TestModelPinnedReachesArgv(t *testing.T) {
+	p, err := Build(role(t, "", "watcher"), Request{Role: "watcher", Brief: "x"}, world(t))
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	if !argvHasPair(p.Argv, "--model", "test-model-5") {
+		t.Errorf("--model test-model-5 absent from argv: %v", p.Argv)
+	}
+}
+
+func TestModelUnsetAddsNoFlag(t *testing.T) {
+	p, err := Build(role(t, "", "base"), Request{Role: "base", Brief: "x"}, world(t))
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	for _, a := range p.Argv {
+		if a == "--model" {
+			t.Fatalf("role pins no model but argv carries --model: %v", p.Argv)
+		}
+	}
+}
+
+func argvHasPair(argv []string, flag, val string) bool {
+	for i := 0; i+1 < len(argv); i++ {
+		if argv[i] == flag && argv[i+1] == val {
+			return true
+		}
+	}
+	return false
 }

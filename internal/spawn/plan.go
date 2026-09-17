@@ -164,6 +164,11 @@ func Build(role *config.Role, req Request, w World) (*Plan, error) {
 		p.Argv = append(p.Argv, "--append-system-prompt", role.SystemPrompt)
 	}
 	p.Argv = append(p.Argv, "--settings", p.SettingsPath)
+	// Before --permission-mode only because argv order is asserted in tests;
+	// the client does not care.
+	if role.Model != "" {
+		p.Argv = append(p.Argv, "--model", role.Model)
+	}
 	if role.PermissionMode != "" {
 		p.Argv = append(p.Argv, "--permission-mode", role.PermissionMode)
 	}
