@@ -47,13 +47,12 @@ homebrew_casks:
     # to express an alias, so the alias is raw Ruby.
     custom_block: |
       binary "workforce", target: "wf"
-    hooks:
-      post:
-        install: |
-          if system_command("/usr/bin/xattr", args: ["-h"]).exit_status.zero?
-            system_command "/usr/bin/xattr",
-                           args: ["-dr", "com.apple.quarantine", "#{staged_path}/workforce"]
-          end
+    # No quarantine-stripping hook. GoReleaser emits it as a `postflight` block,
+    # which Homebrew 7 deprecates in favour of `postflight_steps` and warns about
+    # on every cask operation. Dropped rather than respelled because it may not
+    # be needed at all: Homebrew extracts a `binary` stanza from a tarball itself.
+    # Verify on a FRESH install that `xattr` shows no com.apple.quarantine on
+    # the caskroom binary and that it runs; restore it if either fails.
     caveats: |
       wf needs a config before it can do anything:
 
