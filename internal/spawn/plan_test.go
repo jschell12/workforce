@@ -25,6 +25,7 @@ system_prompt = "stand by"
 
 [role.watcher]
 persona = ""
+retire_with_caller = true
 token = "none"
 cap = 1
 cap_scope = "machine"
@@ -466,5 +467,58 @@ func TestPresentPermProfileWarnsNothing(t *testing.T) {
 	}
 	if len(p.Warnings) != 0 {
 		t.Errorf("a deployed profile should warn about nothing, got %v", p.Warnings)
+	}
+}
+
+// A role that accompanies its caller is told the caller's NAME. It cannot work
+// one out: its brief holds a session id, SendMessage takes a name, and the
+// agent listing shows a ref. Without this a watcher with something to say
+// delivers it to whatever name it can see, which is what happened the first
+// time one had a finding.
+func TestAccompanyingRoleIsToldTheCallerName(t *testing.T) {
+	w := world(t)
+	w.CallerID = "cafe1234"
+	w.Live = []session.Session{{ID: "cafe1234", Name: "jschell12-26"}}
+
+	p, err := Build(role(t, "", "watcher"), Request{Role: "watcher", Brief: "watch it"}, w)
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	text := p.Argv[len(p.Argv)-1]
+	if !strings.Contains(text, "named `jschell12-26`") {
+		t.Errorf("brief does not name the caller: %q", text)
+	}
+}
+
+// An unidentifiable caller omits the line rather than inventing one. The role's
+// own instructions then tell it to stay silent, which is the safe end: a
+// finding sent to the wrong session is somebody else's business.
+func TestUnknownCallerNamesNobody(t *testing.T) {
+	w := world(t)
+	w.CallerID = "cafe1234"
+	w.Live = nil // caller not in the listing
+
+	p, err := Build(role(t, "", "watcher"), Request{Role: "watcher", Brief: "watch it"}, w)
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	text := p.Argv[len(p.Argv)-1]
+	if strings.Contains(text, "The session you are accompanying is named") {
+		t.Errorf("named a caller it could not identify: %q", text)
+	}
+}
+
+// A role that does not accompany anyone gets no such line.
+func TestOrdinaryRoleGetsNoCallerLine(t *testing.T) {
+	w := world(t)
+	w.CallerID = "cafe1234"
+	w.Live = []session.Session{{ID: "cafe1234", Name: "jschell12-26"}}
+
+	p, err := Build(role(t, "", "base"), Request{Role: "base", Brief: "x"}, w)
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	if strings.Contains(p.Argv[len(p.Argv)-1], "accompanying") {
+		t.Error("a role that accompanies nobody was told about a caller")
 	}
 }

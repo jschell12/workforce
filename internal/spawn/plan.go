@@ -102,6 +102,15 @@ func Build(role *config.Role, req Request, w World) (*Plan, error) {
 	if err != nil {
 		return nil, err
 	}
+	// A role that accompanies its caller is told the caller's NAME, because it
+	// cannot work one out: it holds a session id, SendMessage wants a name, and
+	// the listing shows a ref. Appended to the brief rather than passed as a
+	// flag so it is visible in `--dry-run` beside everything else it was told.
+	if role.RetireWithCaller {
+		if name := callerName(w); name != "" {
+			text += fmt.Sprintf(CallerLine, name)
+		}
+	}
 	if err := checkCap(role, req, w); err != nil {
 		return nil, err
 	}
@@ -374,4 +383,19 @@ func liveForRole(role *config.Role, w World) []registry.Entry {
 		}
 	}
 	return out
+}
+
+// callerName is the name of the session that ran wf, or "" when it cannot be
+// identified. Empty is not an error here: the brief then omits the line, and
+// the role's own instructions tell it to stay silent rather than guess.
+func callerName(w World) string {
+	if w.CallerID == "" {
+		return ""
+	}
+	for _, s := range w.Live {
+		if s.Ref() == w.CallerID {
+			return s.Name
+		}
+	}
+	return ""
 }
