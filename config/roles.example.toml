@@ -87,6 +87,11 @@ cap = 1
 cap_scope = "machine"
 workspace = "workspace_root"
 perm = "assistant"
+# Without this nothing ever stops it. Reconcile's other passes select reviewers
+# by name and by registry role, and a machine-scoped role has neither, so a
+# watcher would poll on after the session it watches ended and the cap of one
+# would refuse the next spawn until somebody stopped it by hand.
+retire_with_caller = true
 
 # --- a repository, and the roles it offers ----------------------------------
 
