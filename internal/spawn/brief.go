@@ -22,6 +22,25 @@ const ReviewerBrief = "Review pull request #%s in %s. You are the reviewer sessi
 	"and refresh the merge gate if the repo has one. Do not fix what you find and " +
 	"do not merge. When the verdict is posted you are done."
 
+// CallerLine is appended to the brief of a role that accompanies its caller.
+//
+// Without it such a session cannot address the one it accompanies, and the
+// failure is not obvious from inside: its brief carries a SESSION ID, while
+// SendMessage takes a NAME from the agent listing, and the ref that listing
+// shows is a third namespace again. There is no mapping between them available
+// to the spawned session.
+//
+// Measured 2026-09-18, the first time a watcher had something to say. It tried
+// `to: "main"` and was told "You are the main conversation", then picked the
+// only other name it could see and delivered a finding about one session to a
+// different one. Right finding, wrong session, and nothing about it looked like
+// an error at the time.
+const CallerLine = "\n\nThe session you are accompanying is named `%s`. That name, exactly, " +
+	"is what SendMessage takes; its session id and its listing ref are different " +
+	"namespaces and neither addresses it. If you have no name here, say nothing " +
+	"and stop: a finding delivered to the wrong session is worse than one not " +
+	"delivered, because it is somebody else's business."
+
 // brief returns the user message the session opens with.
 func brief(role, slug, pr, supplied string) (string, error) {
 	if role == RoleReviewer {
