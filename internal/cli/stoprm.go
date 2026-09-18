@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jschell12/workforce/internal/reconcile"
 	"github.com/jschell12/workforce/internal/registry"
 	"github.com/jschell12/workforce/internal/session"
 	"github.com/jschell12/workforce/internal/worktree"
@@ -171,6 +172,9 @@ and says what it overrode.`,
 					fmt.Fprintf(env.Err, "wf: %v\n", err)
 				}
 			}
+			// A machine-scoped role has no registry entry, so the pairing file
+			// is the only place its removal has to be recorded.
+			reconcile.Forget(reconcile.FilePairs{Path: env.Paths.Pairs}, ref, f.Row.Name)
 			if wt != "" {
 				// Re-checked rather than reused: the plan was computed before
 				// the session was stopped, and a session writes files.

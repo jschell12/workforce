@@ -206,7 +206,7 @@ func Run(repos []Repo, live session.Plain, all []session.Session, forge Forge, c
 
 	res.Orphans = sweepOrphans(repos, live, knownAtStart, handled, forge, ctl, opt, &res)
 	sweepAbsent(live, all, handled, ctl, opt, &res)
-	sweepPairs(liveRefs, handled, ctl, opt, &res)
+	sweepPairs(liveRefs, stateOf, handled, ctl, opt, &res)
 	return res, nil
 }
 
@@ -225,7 +225,7 @@ func Run(repos []Repo, live session.Plain, all []session.Session, forge Forge, c
 // and acting on one sighting is what once reaped a reviewer nine minutes into
 // its review. A watcher left running half an hour too long costs a little
 // money. One stopped early takes the correction it was about to make with it.
-func sweepPairs(liveRefs, handled map[string]bool, ctl Control, opt Options, res *Result) {
+func sweepPairs(liveRefs map[string]bool, stateOf map[string]string, handled map[string]bool, ctl Control, opt Options, res *Result) {
 	if opt.Pairs == nil {
 		return
 	}
@@ -255,6 +255,36 @@ func sweepPairs(liveRefs, handled map[string]bool, ctl Control, opt Options, res
 				delete(pairs, name)
 				changed = true
 				continue
+			}
+			// A wedged watcher is doing nothing and cannot be woken, but it is
+			// still listed, so it holds the cap. Its own clock, on the same
+			// sustained-window discipline: `blocked` seen once is not `blocked`
+			// for good, and stopping a session that was briefly slow would take
+			// whatever it was about to say with it.
+			if strings.EqualFold(stateOf[pair.BgID], "blocked") {
+				if pair.WedgedSince == 0 {
+					pair.WedgedSince = now
+					pairs[name] = pair
+					changed = true
+					res.Kept++
+					continue
+				}
+				if now-pair.WedgedSince >= AbsentBeforeClear && !handled[pair.BgID] {
+					retire = append(retire, doomed{name, pair.BgID, "itself (wedged)", now - pair.WedgedSince})
+					if !opt.DryRun {
+						delete(pairs, name)
+						changed = true
+					}
+					continue
+				}
+				res.Kept++
+				continue
+			}
+			if pair.WedgedSince != 0 {
+				// It came back. A wedge that did not stick is not a wedge.
+				pair.WedgedSince = 0
+				pairs[name] = pair
+				changed = true
 			}
 			if liveRefs[pair.Watching] {
 				// Up. An earlier absence did not stick, so the clock resets.
