@@ -32,9 +32,24 @@ type Pair struct {
 }
 
 // Pairs persists the set, keyed by the accompanying session's name.
+//
+// Update is the only mutator, deliberately. Load-then-Save from two processes
+// loses whichever write lands second, and this file has two writers with very
+// different rhythms: a spawn, occasionally, and a sweep every two minutes. A
+// spawn landing inside a sweep's window would have its pairing dropped, and the
+// session it just started would then never retire -- the exact condition the
+// pairing exists to remove, returning quietly and rarely.
+//
+// The atomic rename that was already here prevents a CORRUPT file. It does
+// nothing about a lost update, which is a different failure and the one that
+// bites.
 type Pairs interface {
+	// Update runs fn against the current set under an exclusive lock and
+	// persists the result when fn reports a change. fn must be quick: it holds
+	// the lock, and a spawn blocks behind it.
+	Update(fn func(map[string]Pair) bool)
+	// Load is a read without the lock, for callers that only report.
 	Load() map[string]Pair
-	Save(map[string]Pair)
 }
 
 // FilePairs persists to JSON.
@@ -55,10 +70,7 @@ func (f FilePairs) Load() map[string]Pair {
 	return m
 }
 
-func (f FilePairs) Save(m map[string]Pair) {
-	if err := os.MkdirAll(filepath.Dir(f.Path), 0o755); err != nil {
-		return
-	}
+func (f FilePairs) save(m map[string]Pair) {
 	b, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
 		return
@@ -70,12 +82,34 @@ func (f FilePairs) Save(m map[string]Pair) {
 	_ = os.Rename(tmp, f.Path)
 }
 
+// Update takes an exclusive lock on a sidecar, re-reads inside it, applies fn,
+// and writes back. The lock is on `<path>.lock` rather than on the file itself
+// because the write replaces the file by rename, which would drop a lock held
+// on the old inode.
+//
+// A lock that cannot be taken is not a reason to skip the write: losing the
+// pairing is the failure being prevented. It proceeds unlocked and accepts the
+// small race rather than guaranteeing the loss.
+func (f FilePairs) Update(fn func(map[string]Pair) bool) {
+	if err := os.MkdirAll(filepath.Dir(f.Path), 0o755); err != nil {
+		return
+	}
+	if unlock, err := lockFile(f.Path + ".lock"); err == nil {
+		defer unlock()
+	}
+	m := f.Load()
+	if fn(m) {
+		f.save(m)
+	}
+}
+
 // Record adds or replaces one pairing. Called at spawn, not at sweep.
 func Record(p Pairs, name string, pair Pair) {
 	if p == nil || name == "" || pair.Watching == "" {
 		return
 	}
-	m := p.Load()
-	m[name] = pair
-	p.Save(m)
+	p.Update(func(m map[string]Pair) bool {
+		m[name] = pair
+		return true
+	})
 }
