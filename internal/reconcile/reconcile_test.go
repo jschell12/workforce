@@ -470,3 +470,70 @@ func TestPairingDryRunTouchesNothing(t *testing.T) {
 		t.Errorf("a dry run must still report what it would do: %+v %s", res, out)
 	}
 }
+
+// A watcher can wedge while the session it watches carries on. `blocked` is
+// deliberately not a dead state, so it stays listed, keeps its record, and holds
+// a cap of one against a session doing nothing. Seen on the first live run, when
+// the machine slept mid-response.
+func TestWedgedWatcherIsRetiredOnItsOwnClock(t *testing.T) {
+	live := session.Plain{
+		{ID: "bbbbbbbb", Name: "assistant", State: "blocked"},
+		{ID: "aaaaaaaa", Name: "dev", State: "working"},
+	}
+	pairs := &memPairs{M: map[string]Pair{
+		"assistant": {BgID: "bbbbbbbb", Watching: "aaaaaaaa", WedgedSince: 1000},
+	}}
+
+	res, ctl, out := runPairs(t, live, pairs, &MemAbsence{}, 1000+AbsentBeforeClear, false)
+	if res.Unpaired != 1 || len(ctl.stopped) != 1 {
+		t.Fatalf("a wedged watcher should be retired: %+v stopped=%v", res, ctl.stopped)
+	}
+	if !strings.Contains(out, "wedged") {
+		t.Errorf("want the reason named: %s", out)
+	}
+	if _, still := pairs.M["assistant"]; still {
+		t.Error("record kept; the cap would stay held")
+	}
+}
+
+// BLOCKED ONCE IS NOT WEDGED. Same discipline as absence: stopping a session
+// that was briefly slow takes whatever it was about to say with it.
+func TestBlockedOnceDoesNotRetire(t *testing.T) {
+	live := session.Plain{
+		{ID: "bbbbbbbb", Name: "assistant", State: "blocked"},
+		{ID: "aaaaaaaa", Name: "dev", State: "working"},
+	}
+	pairs := &memPairs{M: map[string]Pair{"assistant": {BgID: "bbbbbbbb", Watching: "aaaaaaaa"}}}
+
+	res, ctl, _ := runPairs(t, live, pairs, &MemAbsence{}, 5000, false)
+	if res.Unpaired != 0 || len(ctl.stopped) != 0 {
+		t.Fatalf("a first sighting must not retire: %+v", res)
+	}
+	if pairs.M["assistant"].WedgedSince != 5000 {
+		t.Errorf("clock should have started: %+v", pairs.M["assistant"])
+	}
+
+	res, ctl, _ = runPairs(t, live, pairs, &MemAbsence{}, 5000+AbsentBeforeClear-1, false)
+	if res.Unpaired != 0 || len(ctl.stopped) != 0 {
+		t.Fatalf("one second short must not retire: %+v", res)
+	}
+}
+
+// A watcher that comes back is not wedged, and its clock must not survive.
+func TestRecoveredWatcherClearsTheWedgeClock(t *testing.T) {
+	live := session.Plain{
+		{ID: "bbbbbbbb", Name: "assistant", State: "working"},
+		{ID: "aaaaaaaa", Name: "dev", State: "working"},
+	}
+	pairs := &memPairs{M: map[string]Pair{
+		"assistant": {BgID: "bbbbbbbb", Watching: "aaaaaaaa", WedgedSince: 1000},
+	}}
+
+	res, ctl, _ := runPairs(t, live, pairs, &MemAbsence{}, 1000+AbsentBeforeClear, false)
+	if res.Unpaired != 0 || len(ctl.stopped) != 0 {
+		t.Fatalf("a recovered watcher must not be retired: %+v", res)
+	}
+	if pairs.M["assistant"].WedgedSince != 0 {
+		t.Errorf("wedge clock not cleared: %+v", pairs.M["assistant"])
+	}
+}

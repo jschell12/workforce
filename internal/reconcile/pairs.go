@@ -29,6 +29,17 @@ type Pair struct {
 	// passes sharing one map with different key populations is the bug; a
 	// record that carries its own clock cannot have it.
 	MissingSince int64 `json:"missing_since,omitempty"`
+
+	// WedgedSince is when the accompanying session itself was first seen
+	// `blocked`, or zero while it is working.
+	//
+	// A watcher can die while the session it watches carries on, and the
+	// pairing had no opinion about that: `blocked` is deliberately NOT a dead
+	// state (see deadStates, where an allowlist once started a second keepalive
+	// session), so a wedged watcher stays in the live listing, keeps its record,
+	// and holds a cap of one against a session that is doing nothing. Observed
+	// on the first live run, where the machine slept mid-response.
+	WedgedSince int64 `json:"wedged_since,omitempty"`
 }
 
 // Pairs persists the set, keyed by the accompanying session's name.
@@ -111,5 +122,28 @@ func Record(p Pairs, name string, pair Pair) {
 	p.Update(func(m map[string]Pair) bool {
 		m[name] = pair
 		return true
+	})
+}
+
+// Forget drops any pairing naming this session, by record name or by session
+// ref. Called when something removes a session directly, so the record does not
+// outlive it.
+//
+// Reconcile would clear it anyway on its next sweep, through the liveRefs check.
+// This is so `wf rm` leaves nothing behind for two minutes, and so a removal
+// followed immediately by a spawn does not race the sweep for the row.
+func Forget(p Pairs, ref, name string) {
+	if p == nil {
+		return
+	}
+	p.Update(func(m map[string]Pair) bool {
+		changed := false
+		for k, v := range m {
+			if k == name || v.BgID == ref {
+				delete(m, k)
+				changed = true
+			}
+		}
+		return changed
 	})
 }

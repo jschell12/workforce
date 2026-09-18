@@ -79,3 +79,34 @@ func TestLoadOfAMissingFileIsEmpty(t *testing.T) {
 		t.Error("a missing file should read as no pairings")
 	}
 }
+
+// `wf rm` calls this, so a removal leaves nothing behind for the next sweep to
+// trip over, and a removal followed at once by a spawn does not race it.
+func TestForgetDropsByRefOrName(t *testing.T) {
+	p := FilePairs{Path: filepath.Join(t.TempDir(), "pairs.json")}
+	Record(p, "assistant", Pair{BgID: "bb", Watching: "aa"})
+	Record(p, "other", Pair{BgID: "cc", Watching: "dd"})
+
+	Forget(p, "bb", "")
+	if _, still := p.Load()["assistant"]; still {
+		t.Error("not dropped by ref")
+	}
+	if len(p.Load()) != 1 {
+		t.Errorf("dropped too much: %v", p.Load())
+	}
+
+	Forget(p, "", "other")
+	if len(p.Load()) != 0 {
+		t.Errorf("not dropped by name: %v", p.Load())
+	}
+}
+
+// Forgetting something absent must not disturb the rest.
+func TestForgetOfAnUnknownSessionIsHarmless(t *testing.T) {
+	p := FilePairs{Path: filepath.Join(t.TempDir(), "pairs.json")}
+	Record(p, "assistant", Pair{BgID: "bb", Watching: "aa"})
+	Forget(p, "zz", "nobody")
+	if len(p.Load()) != 1 {
+		t.Errorf("unrelated row disturbed: %v", p.Load())
+	}
+}
