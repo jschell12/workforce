@@ -129,9 +129,16 @@ func Record(p Pairs, name string, pair Pair) {
 // ref. Called when something removes a session directly, so the record does not
 // outlive it.
 //
-// Reconcile would clear it anyway on its next sweep, through the liveRefs check.
-// This is so `wf rm` leaves nothing behind for two minutes, and so a removal
-// followed immediately by a spawn does not race the sweep for the row.
+// Reconcile would clear it anyway on its next sweep, through the liveRefs check,
+// so this is tidiness rather than correctness: `wf rm` should not leave a row
+// naming a session that no longer exists, even for two minutes.
+//
+// An earlier version of this comment also claimed it stopped a removal racing a
+// spawn for the row. #8's review went looking for that failure and could not
+// reach it, correctly: Record is keyed by name, so a respawn overwrites the row,
+// and a stale row whose BgID is dead is deleted by the sweep's own liveRefs
+// check either way. The justification was invented after the fact and is gone;
+// the reason above stands on its own.
 func Forget(p Pairs, ref, name string) {
 	if p == nil {
 		return
