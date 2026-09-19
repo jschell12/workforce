@@ -44,15 +44,15 @@ func TestConcurrentRecordsAreNotLost(t *testing.T) {
 func TestRecordWritesAndReplaces(t *testing.T) {
 	p := FilePairs{Path: filepath.Join(t.TempDir(), "pairs.json")}
 
-	Record(p, "assistant", Pair{BgID: "bb", Watching: "aa"})
-	if got := p.Load()["assistant"]; got.BgID != "bb" || got.Watching != "aa" {
+	Record(p, "assist", Pair{BgID: "bb", Watching: "aa"})
+	if got := p.Load()["assist"]; got.BgID != "bb" || got.Watching != "aa" {
 		t.Fatalf("not recorded: %+v", got)
 	}
 
 	// A second assistant for a different caller replaces the first: the name is
 	// the key, and the cap allows only one.
-	Record(p, "assistant", Pair{BgID: "cc", Watching: "dd"})
-	if got := p.Load()["assistant"]; got.BgID != "cc" || got.Watching != "dd" {
+	Record(p, "assist", Pair{BgID: "cc", Watching: "dd"})
+	if got := p.Load()["assist"]; got.BgID != "cc" || got.Watching != "dd" {
 		t.Fatalf("not replaced: %+v", got)
 	}
 	if len(p.Load()) != 1 {
@@ -64,7 +64,7 @@ func TestRecordWritesAndReplaces(t *testing.T) {
 // watched ref can never retire and would hold the cap forever.
 func TestRecordRefusesAnIncompletePair(t *testing.T) {
 	p := FilePairs{Path: filepath.Join(t.TempDir(), "pairs.json")}
-	Record(p, "assistant", Pair{BgID: "bb"}) // no Watching
+	Record(p, "assist", Pair{BgID: "bb"}) // no Watching
 	Record(p, "", Pair{BgID: "bb", Watching: "aa"})
 	if len(p.Load()) != 0 {
 		t.Errorf("wrote an unretireable row: %v", p.Load())
@@ -84,11 +84,11 @@ func TestLoadOfAMissingFileIsEmpty(t *testing.T) {
 // trip over, and a removal followed at once by a spawn does not race it.
 func TestForgetDropsByRefOrName(t *testing.T) {
 	p := FilePairs{Path: filepath.Join(t.TempDir(), "pairs.json")}
-	Record(p, "assistant", Pair{BgID: "bb", Watching: "aa"})
+	Record(p, "assist", Pair{BgID: "bb", Watching: "aa"})
 	Record(p, "other", Pair{BgID: "cc", Watching: "dd"})
 
 	Forget(p, "bb", "")
-	if _, still := p.Load()["assistant"]; still {
+	if _, still := p.Load()["assist"]; still {
 		t.Error("not dropped by ref")
 	}
 	if len(p.Load()) != 1 {
@@ -104,7 +104,7 @@ func TestForgetDropsByRefOrName(t *testing.T) {
 // Forgetting something absent must not disturb the rest.
 func TestForgetOfAnUnknownSessionIsHarmless(t *testing.T) {
 	p := FilePairs{Path: filepath.Join(t.TempDir(), "pairs.json")}
-	Record(p, "assistant", Pair{BgID: "bb", Watching: "aa"})
+	Record(p, "assist", Pair{BgID: "bb", Watching: "aa"})
 	Forget(p, "zz", "nobody")
 	if len(p.Load()) != 1 {
 		t.Errorf("unrelated row disturbed: %v", p.Load())

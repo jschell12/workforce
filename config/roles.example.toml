@@ -78,15 +78,15 @@ tokens."""
 # machine-scoped cap counts sessions whose name matches the role name. A role
 # with per-instance names would have a cap that counts zero forever and never
 # fires.
-[role.assistant]
-persona = "assistant"
-personas_allowed = ["assistant"]
+[role.assist]
+persona = "assist"
+personas_allowed = ["assist"]
 token = "none"
 model = "claude-sonnet-5"
 cap = 1
 cap_scope = "machine"
 workspace = "workspace_root"
-perm = "assistant"
+perm = "assist"
 # Without this nothing ever stops it. Reconcile's other passes select reviewers
 # by name and by registry role, and a machine-scoped role has neither, so a
 # watcher would poll on after the session it watches ended and the cap of one

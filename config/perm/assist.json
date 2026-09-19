@@ -1,6 +1,6 @@
 {
   "_comment": [
-    "Permission profile for the `assistant` session: it watches one other",
+    "Permission profile for the `assist` session: it watches one other",
     "session's transcript and speaks when that transcript contradicts a claim",
     "that session made.",
     "",
