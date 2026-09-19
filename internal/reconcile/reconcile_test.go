@@ -394,8 +394,8 @@ func runPairs(t *testing.T, live session.Plain, pairs *memPairs, abs *MemAbsence
 // has been gone for the sustained window, it is stopped and the record cleared,
 // so the next spawn is not refused by a cap held against a session that ended.
 func TestPairedSessionRetiresAfterItsCallerIsGone(t *testing.T) {
-	live := session.Plain{{ID: "bbbbbbbb", Name: "assistant"}}
-	pairs := &memPairs{M: map[string]Pair{"assistant": {BgID: "bbbbbbbb", Watching: "aaaaaaaa", MissingSince: 1000}}}
+	live := session.Plain{{ID: "bbbbbbbb", Name: "assist"}}
+	pairs := &memPairs{M: map[string]Pair{"assist": {BgID: "bbbbbbbb", Watching: "aaaaaaaa", MissingSince: 1000}}}
 	abs := &MemAbsence{}
 
 	res, ctl, out := runPairs(t, live, pairs, abs, 1000+AbsentBeforeClear, false)
@@ -405,7 +405,7 @@ func TestPairedSessionRetiresAfterItsCallerIsGone(t *testing.T) {
 	if len(ctl.stopped) != 1 || ctl.stopped[0] != "bbbbbbbb" {
 		t.Errorf("the accompanying session should have been stopped, got %v", ctl.stopped)
 	}
-	if _, still := pairs.M["assistant"]; still {
+	if _, still := pairs.M["assist"]; still {
 		t.Error("record kept after retiring; the cap would stay held")
 	}
 	if !strings.Contains(out, "unpair") {
@@ -417,16 +417,16 @@ func TestPairedSessionRetiresAfterItsCallerIsGone(t *testing.T) {
 // it wrong once cost a live review, so it is pinned here too rather than
 // trusted to the pass that shares the constant.
 func TestPairedSessionSurvivesASingleAbsence(t *testing.T) {
-	live := session.Plain{{ID: "bbbbbbbb", Name: "assistant"}}
-	pairs := &memPairs{M: map[string]Pair{"assistant": {BgID: "bbbbbbbb", Watching: "aaaaaaaa"}}}
+	live := session.Plain{{ID: "bbbbbbbb", Name: "assist"}}
+	pairs := &memPairs{M: map[string]Pair{"assist": {BgID: "bbbbbbbb", Watching: "aaaaaaaa"}}}
 
 	// First sighting of the absence: starts the clock, retires nothing.
 	res, ctl, _ := runPairs(t, live, pairs, &MemAbsence{}, 5000, false)
 	if res.Unpaired != 0 || len(ctl.stopped) != 0 {
 		t.Fatalf("a first absence must not retire anything: %+v", res)
 	}
-	if pairs.M["assistant"].MissingSince != 5000 {
-		t.Errorf("the clock should have started at 5000, got %+v", pairs.M["assistant"])
+	if pairs.M["assist"].MissingSince != 5000 {
+		t.Errorf("the clock should have started at 5000, got %+v", pairs.M["assist"])
 	}
 
 	// One second short of the window.
@@ -440,30 +440,30 @@ func TestPairedSessionSurvivesASingleAbsence(t *testing.T) {
 // absence that did not stick.
 func TestReturningCallerClearsThePairingClock(t *testing.T) {
 	live := session.Plain{
-		{ID: "bbbbbbbb", Name: "assistant"},
+		{ID: "bbbbbbbb", Name: "assist"},
 		{ID: "aaaaaaaa", Name: "dev"},
 	}
-	pairs := &memPairs{M: map[string]Pair{"assistant": {BgID: "bbbbbbbb", Watching: "aaaaaaaa", MissingSince: 1000}}}
+	pairs := &memPairs{M: map[string]Pair{"assist": {BgID: "bbbbbbbb", Watching: "aaaaaaaa", MissingSince: 1000}}}
 
 	res, ctl, _ := runPairs(t, live, pairs, &MemAbsence{}, 1000+AbsentBeforeClear, false)
 	if res.Unpaired != 0 || len(ctl.stopped) != 0 {
 		t.Fatalf("the caller is live; nothing should retire: %+v", res)
 	}
-	if pairs.M["assistant"].MissingSince != 0 {
+	if pairs.M["assist"].MissingSince != 0 {
 		t.Error("clock not reset for a session that came back")
 	}
 }
 
 // A dry run says what it would do and does none of it.
 func TestPairingDryRunTouchesNothing(t *testing.T) {
-	live := session.Plain{{ID: "bbbbbbbb", Name: "assistant"}}
-	pairs := &memPairs{M: map[string]Pair{"assistant": {BgID: "bbbbbbbb", Watching: "aaaaaaaa", MissingSince: 1000}}}
+	live := session.Plain{{ID: "bbbbbbbb", Name: "assist"}}
+	pairs := &memPairs{M: map[string]Pair{"assist": {BgID: "bbbbbbbb", Watching: "aaaaaaaa", MissingSince: 1000}}}
 
 	res, ctl, out := runPairs(t, live, pairs, &MemAbsence{}, 1000+AbsentBeforeClear, true)
 	if len(ctl.stopped) != 0 || len(ctl.removed) != 0 {
 		t.Errorf("a dry run stopped something: %v %v", ctl.stopped, ctl.removed)
 	}
-	if _, still := pairs.M["assistant"]; !still {
+	if _, still := pairs.M["assist"]; !still {
 		t.Error("a dry run deleted the record")
 	}
 	if res.Unpaired != 1 || !strings.Contains(out, "unpair") {
@@ -477,11 +477,11 @@ func TestPairingDryRunTouchesNothing(t *testing.T) {
 // the machine slept mid-response.
 func TestWedgedWatcherIsRetiredOnItsOwnClock(t *testing.T) {
 	live := session.Plain{
-		{ID: "bbbbbbbb", Name: "assistant", State: "blocked"},
+		{ID: "bbbbbbbb", Name: "assist", State: "blocked"},
 		{ID: "aaaaaaaa", Name: "dev", State: "working"},
 	}
 	pairs := &memPairs{M: map[string]Pair{
-		"assistant": {BgID: "bbbbbbbb", Watching: "aaaaaaaa", WedgedSince: 1000},
+		"assist": {BgID: "bbbbbbbb", Watching: "aaaaaaaa", WedgedSince: 1000},
 	}}
 
 	res, ctl, out := runPairs(t, live, pairs, &MemAbsence{}, 1000+AbsentBeforeClear, false)
@@ -491,7 +491,7 @@ func TestWedgedWatcherIsRetiredOnItsOwnClock(t *testing.T) {
 	if !strings.Contains(out, "wedged") {
 		t.Errorf("want the reason named: %s", out)
 	}
-	if _, still := pairs.M["assistant"]; still {
+	if _, still := pairs.M["assist"]; still {
 		t.Error("record kept; the cap would stay held")
 	}
 }
@@ -500,17 +500,17 @@ func TestWedgedWatcherIsRetiredOnItsOwnClock(t *testing.T) {
 // that was briefly slow takes whatever it was about to say with it.
 func TestBlockedOnceDoesNotRetire(t *testing.T) {
 	live := session.Plain{
-		{ID: "bbbbbbbb", Name: "assistant", State: "blocked"},
+		{ID: "bbbbbbbb", Name: "assist", State: "blocked"},
 		{ID: "aaaaaaaa", Name: "dev", State: "working"},
 	}
-	pairs := &memPairs{M: map[string]Pair{"assistant": {BgID: "bbbbbbbb", Watching: "aaaaaaaa"}}}
+	pairs := &memPairs{M: map[string]Pair{"assist": {BgID: "bbbbbbbb", Watching: "aaaaaaaa"}}}
 
 	res, ctl, _ := runPairs(t, live, pairs, &MemAbsence{}, 5000, false)
 	if res.Unpaired != 0 || len(ctl.stopped) != 0 {
 		t.Fatalf("a first sighting must not retire: %+v", res)
 	}
-	if pairs.M["assistant"].WedgedSince != 5000 {
-		t.Errorf("clock should have started: %+v", pairs.M["assistant"])
+	if pairs.M["assist"].WedgedSince != 5000 {
+		t.Errorf("clock should have started: %+v", pairs.M["assist"])
 	}
 
 	res, ctl, _ = runPairs(t, live, pairs, &MemAbsence{}, 5000+AbsentBeforeClear-1, false)
@@ -522,18 +522,18 @@ func TestBlockedOnceDoesNotRetire(t *testing.T) {
 // A watcher that comes back is not wedged, and its clock must not survive.
 func TestRecoveredWatcherClearsTheWedgeClock(t *testing.T) {
 	live := session.Plain{
-		{ID: "bbbbbbbb", Name: "assistant", State: "working"},
+		{ID: "bbbbbbbb", Name: "assist", State: "working"},
 		{ID: "aaaaaaaa", Name: "dev", State: "working"},
 	}
 	pairs := &memPairs{M: map[string]Pair{
-		"assistant": {BgID: "bbbbbbbb", Watching: "aaaaaaaa", WedgedSince: 1000},
+		"assist": {BgID: "bbbbbbbb", Watching: "aaaaaaaa", WedgedSince: 1000},
 	}}
 
 	res, ctl, _ := runPairs(t, live, pairs, &MemAbsence{}, 1000+AbsentBeforeClear, false)
 	if res.Unpaired != 0 || len(ctl.stopped) != 0 {
 		t.Fatalf("a recovered watcher must not be retired: %+v", res)
 	}
-	if pairs.M["assistant"].WedgedSince != 0 {
-		t.Errorf("wedge clock not cleared: %+v", pairs.M["assistant"])
+	if pairs.M["assist"].WedgedSince != 0 {
+		t.Errorf("wedge clock not cleared: %+v", pairs.M["assist"])
 	}
 }
