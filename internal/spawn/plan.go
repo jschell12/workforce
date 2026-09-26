@@ -16,15 +16,17 @@ import (
 
 // Request is what the caller asked for.
 type Request struct {
-	Role    string
-	Repo    string
-	Brief   string
-	PR      string
-	Persona string
-	Name    string
-	Slug    string // the repo's forge slug, for origin route 4
-	ForTag  string // --for: the caller naming its own origin
-	Head    string // the PR head this reviewer answers for, if known
+	Sessions    string // explicit existing worker pool, never an inferred default
+	SessionsSet bool   // distinguishes omitted from an explicitly empty flag
+	Role        string
+	Repo        string
+	Brief       string
+	PR          string
+	Persona     string
+	Name        string
+	Slug        string // the repo's forge slug, for origin route 4
+	ForTag      string // --for: the caller naming its own origin
+	Head        string // the PR head this reviewer answers for, if known
 }
 
 // Plan is a fully decided spawn. Nothing here has run yet.
@@ -92,6 +94,10 @@ func Build(role *config.Role, req Request, w World) (*Plan, error) {
 		persona = role.Persona
 	}
 
+	poolPolicy, err := workerPoolPolicy(role, persona, req, w)
+	if err != nil {
+		return nil, err
+	}
 	slug := ""
 	repoName := "(machine)"
 	if role.Repo != nil {
@@ -177,8 +183,12 @@ func Build(role *config.Role, req Request, w World) (*Plan, error) {
 	// to dispatch rather than do the work, obeyed on turn one, and on turn two
 	// ran fourteen commands against a production database. Nothing held it,
 	// because nothing could.
-	if role.SystemPrompt != "" {
-		p.Argv = append(p.Argv, "--append-system-prompt", role.SystemPrompt)
+	systemPrompt := role.SystemPrompt
+	if poolPolicy != "" {
+		systemPrompt += "\n\n" + poolPolicy
+	}
+	if systemPrompt != "" {
+		p.Argv = append(p.Argv, "--append-system-prompt", systemPrompt)
 	}
 	p.Argv = append(p.Argv, "--settings", p.SettingsPath)
 	// Before --permission-mode only because argv order is asserted in tests;
