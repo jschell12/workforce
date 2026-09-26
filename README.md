@@ -37,6 +37,31 @@ permission profile and credential key the config names. Run doctor first: a
 role whose token key does not resolve fails at spawn time, and a reviewer that
 cannot authenticate looks exactly like one that found nothing to say.
 
+## Coordinator worker sessions
+
+Coordinators create fresh worker sessions by default. Existing sessions such as
+`permitguv1` are never selected merely because they are visible or idle.
+
+To explicitly allow an existing pool for one new coordinator:
+
+    wf spawn worker permitguv --persona coordinator --sessions permitguv1,permitguv3 --brief "Coordinate the ready queue"
+
+`--sessions` selects workers the coordinator may assign; it does not reuse the
+coordinator itself, dispatch work immediately, reserve sessions, or change
+permission mode. It is supported only for repo-scoped workers using the
+`coordinator` persona. Omit it to create fresh workers. An explicit pool is
+exclusive: if its members are unavailable, the coordinator waits or reports the
+blocker instead of selecting other sessions. Reviewers always start fresh.
+
+Names or refs must resolve unambiguously to distinct, live, idle sessions rooted
+in the repository checkout or a registered worker worktree for that repository.
+Empty entries, busy or unknown states, conflicting registry roles, and parent
+workspace directories are refused. The generated system instruction pins the
+observed identities and requires another availability and identity check before
+each dispatch. This is coordinator guidance, not a global session-routing lock;
+role caps, credential bindings, and permission profiles remain unchanged.
+`--dry-run` shows the policy without starting anything.
+
 ## Layout
 
     cmd/wf/              the CLI entry point

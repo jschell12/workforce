@@ -28,7 +28,8 @@ A reviewer's brief is composed here and a caller-supplied one is refused, so an
 author who summons the reviewer for its own pull request cannot also frame what
 that reviewer looks at.`,
 		Args: cobra.RangeArgs(1, 3),
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error {
+			req.SessionsSet = cmd.Flags().Changed("sessions")
 			req.Role = args[0]
 			if len(args) > 1 {
 				req.Repo = args[1]
@@ -205,6 +206,7 @@ that reviewer looks at.`,
 	f.StringVar(&req.Brief, "brief", "", "the session's opening message (refused for a reviewer)")
 	f.StringVar(&req.PR, "pr", "", "pull request number; required for a reviewer")
 	f.StringVar(&req.Persona, "persona", "", "pick from the role's personas_allowed")
+	f.StringVar(&req.Sessions, "sessions", "", "explicit existing worker pool for --persona coordinator (comma-separated names or refs)")
 	f.StringVar(&req.Name, "name", "", "override the generated session name")
 	f.StringVar(&req.ForTag, "for", "", "tag or name of the session this reviewer answers for")
 	f.BoolVar(&dryRun, "dry-run", false, "print the decision and exit without starting anything")
